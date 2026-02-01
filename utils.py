@@ -1,1 +1,0 @@
-/home/gaston/Desktop/repos/scripts/utils.py
