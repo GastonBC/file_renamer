@@ -33,11 +33,12 @@ def rename_files(dir, pattern, new_pattern, dry_run=True):
             continue
 
         filename = file_path.name
+        formatted = reformat_string(filename, pattern, new_pattern)
+        destination = dir / formatted
 
         if dry_run:
             try: 
-                formatted = reformat_string(filename, pattern, new_pattern)
-                destination = dir / formatted
+                
                 st.info(formatted)
             except KeyError:
                 st.error(f"{filename} not formatted")
@@ -64,19 +65,26 @@ with st.container(border=True):
     with col2:
         new_pat = st.text_input("Target Pattern", value="{title}_old.{extension}")
 
-    dry_run = st.toggle("Dry Run", value=True)
+    dry_run_b = st.toggle("Dry Run", value=True)
     run_button = st.button("Execute Renaming", type="primary")
+
 
 if run_button:
     st.subheader("Output")
-    # Calling your function
     try:
-        # Assuming your function prints or returns results
-        results = rename_files(Path(folder), pat, new_pat, dry_run)
+        results = rename_files(Path(folder), pat, new_pat, dry_run_b)
+        if results:
+            st.code(results)
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+st.subheader("Preview")
+if folder and pat and new_pat:
+    try:
+        results = rename_files(Path(folder), pat, new_pat, dry_run=True)
         
         if results:
             st.code(results)
-        else:
-            st.success("Task completed")
     except Exception as e:
         st.error(f"Error: {e}")
+
