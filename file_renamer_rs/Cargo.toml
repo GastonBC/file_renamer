@@ -1,0 +1,9 @@
+[package]
+name = "file_renamer_rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.33.3"
+regex = "1.12.2"
+rfd = "0.17.2"
