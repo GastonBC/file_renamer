@@ -1,0 +1,22 @@
+# Place braces on new lines (Allman style)
+brace_style = "AlwaysNextLine"
+
+# Force braces even for single-line 'if' statements
+control_brace_style = "AlwaysNextLine"
+
+# Put the 'where' clause on a new line
+where_single_line = false
+
+# How to handle function calls and arguments
+indent_style = "Block"
+
+# C# usually prefers slightly longer lines before wrapping
+max_width = 120
+
+# Force a new line for closures (like egui's .show() blocks)
+# Note: Rustfmt is sometimes conservative here, but this helps.
+combine_control_expr = false
+
+# Group imports similarly to 'using' statements
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"

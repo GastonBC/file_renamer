@@ -1,71 +1,9 @@
 use eframe::egui;
-use regex::{escape, Regex};
 use rfd::FileDialog;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+mod utils;
 
-fn reformat_string(orig_str: &str, orig_format: &str, new_format: &str) -> Result<String, String> {
-    // 1. Identify the tag names (e.g., "tit", "ext")
-    // We use a regex to find everything inside { }
-    let tag_regex = Regex::new(r"\{(.+?)\}").unwrap();
-    let tags: Vec<&str> = tag_regex
-        .captures_iter(orig_format)
-        .map(|cap| cap.get(1).unwrap().as_str())
-        .collect();
-
-    // 2. Escape the entire format string
-    let escaped_format = escape(orig_format);
-
-    let escaped_tag_regex = Regex::new(r"\\\{.+?\\\}").unwrap();
-    let pattern_str = escaped_tag_regex
-        .replace_all(&escaped_format, "(.+)")
-        .to_string();
-
-    // Create the regex anchor it to start/end for accuracy
-    let pattern = Regex::new(&format!("^{}$", pattern_str))
-        .map_err(|_| "Invalid Pattern Generated".to_string())?;
-
-    let caps = pattern
-        .captures(orig_str)
-        .ok_or_else(|| "Pattern not found".to_string())?;
-
-    // 4. Map tags to captured values
-    let mut reformat_dict = HashMap::new();
-    for (i, tag) in tags.iter().enumerate() {
-        // i+1 because capture 0 is the full match
-        if let Some(val) = caps.get(i + 1) {
-            reformat_dict.insert(*tag, val.as_str());
-        }
-    }
-
-    // 5. Final replacement in new_format
-    let mut result = new_format.to_string();
-    for (tag, value) in reformat_dict {
-        let placeholder = format!("{{{}}}", tag);
-        result = result.replace(&placeholder, value);
-    }
-
-    Ok(result)
-}
-
-fn get_sorted_files(base_path: &PathBuf) -> Result<Vec<fs::DirEntry>, String> {
-
-            // Check if the directory exists/is readable
-            let entries = match fs::read_dir(&base_path) {
-                Ok(e) => e,
-                Err(e) => { return Err(format!("Invalid folder path: {}", e)) }
-                };
-            
-
-            // Prepare the list (Flatten and Sort)
-            let mut file_entries: Vec<fs::DirEntry> = entries.flatten().collect();
-            file_entries.sort_by_key(|entry| entry.file_name());
-
-            return Ok(file_entries);
-}
-
-fn main() -> eframe::Result<()> {
+fn main() -> eframe::Result<()>
+{
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([500.0, 650.0])
@@ -81,15 +19,18 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-struct RenamerApp {
+struct RenamerApp
+{
     folder: String,
     pat: String,
     new_pat: String,
     results: Vec<String>,
 }
 
-impl Default for RenamerApp {
-    fn default() -> Self {
+impl Default for RenamerApp
+{
+    fn default() -> Self
+    {
         Self {
             folder: "/home/gaston/Downloads".to_string(),
             pat: "{title}.{extension}".to_string(),
@@ -99,54 +40,18 @@ impl Default for RenamerApp {
     }
 }
 
-impl RenamerApp {
-    fn run_logic(&mut self, dry_run: bool) {
-        self.results.clear();
-        
-        let base_path = PathBuf::from(&self.folder);
-
-        let file_entries = match get_sorted_files(&base_path) 
-        {
-            Ok(entries) => entries,
-            Err(e) => 
-            {
-                self.results.push(e); 
-                return;               
-            }
-        };
-
-        for entry in file_entries {
-            if entry.path().is_dir() {
-                continue;
-            }
-
-            let name = entry.file_name().to_string_lossy().into_owned();
-
-            let new_name = match reformat_string(&name, &self.pat, &self.new_pat) {
-                Ok(e) => e,
-                Err(_) => {
-                    self.results.push(format!("Unable to rename {}", name));
-                    continue;
-                }
-            };
-
-            if dry_run {
-                self.results.push(format!("{}  ➜  {}", name, new_name));
-            } else {
-                let old_path = base_path.join(&name);
-                let new_path = base_path.join(&new_name);
-
-                match fs::rename(&old_path, &new_path) {
-                    Ok(_) => self.results.push(format!("✅ {} ➜ {}", name, new_name)),
-                    Err(e) => self.results.push(format!("❌ Error {}: {}", name, e)),
-                }
-            }
-        }
+impl RenamerApp
+{
+    fn run_logic(&mut self, dry_run: bool)
+    {
+        self.results = utils::process_rename(&self.folder, &self.pat, &self.new_pat, dry_run);
     }
 }
 
-impl eframe::App for RenamerApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl eframe::App for RenamerApp
+{
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
+    {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("File Renamer");
             ui.add_space(10.0); // Add a little breathing room
@@ -154,10 +59,16 @@ impl eframe::App for RenamerApp {
             // --- Top Section: Folder Selection ---
             ui.horizontal(|ui| {
                 ui.label("Target Folder:");
-                ui.text_edit_singleline(&mut self.folder);
-                if ui.button("Browse").clicked() {
-                    if let Some(path) = FileDialog::new().pick_folder() {
+                if ui.text_edit_singleline(&mut self.folder).changed()
+                {
+                    self.run_logic(true);
+                }
+                if ui.button("Browse").clicked()
+                {
+                    if let Some(path) = FileDialog::new().pick_folder()
+                    {
                         self.folder = path.display().to_string();
+                        self.run_logic(true);
                     }
                 }
             });
@@ -179,36 +90,33 @@ impl eframe::App for RenamerApp {
                     let spacing_total = 10.0 * 2.0;
                     let column_width = (484.0 - spacing_total) / 2.0;
 
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(&mut self.pat)
-                            .min_size(egui::vec2(column_width, 0.0))
-                    );
+                    let resp =
+                        ui.add(egui::TextEdit::singleline(&mut self.pat).min_size(egui::vec2(column_width, 0.0)));
 
-                    if resp.changed() 
+                    if resp.changed()
                     {
                         self.run_logic(true);
                     }
 
-                    let resp = ui.add(egui::TextEdit::singleline(&mut self.new_pat).min_size(egui::vec2(column_width, 0.0)));
+                    let resp =
+                        ui.add(egui::TextEdit::singleline(&mut self.new_pat).min_size(egui::vec2(column_width, 0.0)));
 
-                    if resp.changed() 
+                    if resp.changed()
                     {
                         self.run_logic(true);
                     }
 
-                        
-                    
                     ui.end_row();
                 });
 
             ui.separator();
 
             // --- Bottom Section: Preview and Action ---
-            if ui.button("🚀 Apply Renaming").clicked() {
+            if ui.button("🚀 Apply Renaming").clicked()
+            {
                 self.run_logic(false);
             }
             ui.add_space(10.0);
-            
 
             ui.label("Dry Run Preview:");
 
@@ -223,12 +131,14 @@ impl eframe::App for RenamerApp {
                         .spacing([10.0, 4.0]) // Wider horizontal spacing for clarity
                         .striped(true) // Adds alternating row colors like a real table
                         .show(ui, |ui| {
-                            for line in &self.results {
+                            for line in &self.results
+                            {
                                 // Split the string back into parts
                                 // (Assuming you kept the "  ➜  " separator)
                                 let parts: Vec<&str> = line.split("  ➜  ").collect();
 
-                                if parts.len() == 2 {
+                                if parts.len() == 2
+                                {
                                     // Column 1: Old Name
                                     ui.monospace(parts[0]);
 
@@ -237,16 +147,13 @@ impl eframe::App for RenamerApp {
 
                                     // Column 3: New Name (Highlighted)
                                     ui.group(|ui| {
-                                        ui.monospace(
-                                            egui::RichText::new(parts[1])
-                                                .color(egui::Color32::LIGHT_GREEN),
-                                        );
+                                        ui.monospace(egui::RichText::new(parts[1]).color(egui::Color32::LIGHT_GREEN));
                                     });
-                                } else {
+                                }
+                                else
+                                {
                                     // Handle the "Unable to rename" or error lines
-                                    ui.label(
-                                        egui::RichText::new(line).color(egui::Color32::LIGHT_RED),
-                                    );
+                                    ui.label(egui::RichText::new(line).color(egui::Color32::LIGHT_RED));
                                     ui.label(""); // Empty cell for the arrow
                                     ui.label(""); // Empty cell for the new name
                                 }
