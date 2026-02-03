@@ -31,12 +31,16 @@ impl Default for RenamerApp
 {
     fn default() -> Self
     {
-        Self {
+        let mut app = Self {
             folder: "/home/gaston/Downloads".to_string(),
             pat: "{title}.{extension}".to_string(),
             new_pat: "{title}_old.{extension}".to_string(),
             results: vec![],
-        }
+        };
+
+        // Run once at the start
+        app.run_logic(true);
+        app
     }
 }
 
