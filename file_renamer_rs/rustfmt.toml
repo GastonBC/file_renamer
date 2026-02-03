@@ -1,9 +1,0 @@
-# Put braces on the next line for almost everything
-brace_style = "AlwaysNextLine"
-
-# Force braces on new lines for control flow (if/else, loop, etc.)
-control_brace_style = "AlwaysNextLine"
-
-# Optional: Adjust other C#-like preferences
-indent_style = "Block"
-trailing_comma = "Vertical"

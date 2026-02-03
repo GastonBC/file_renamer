@@ -1,5 +1,5 @@
 use eframe::egui;
-use regex::{Regex, escape};
+use regex::{escape, Regex};
 use rfd::FileDialog;
 use std::collections::HashMap;
 use std::fs;
@@ -17,10 +17,6 @@ fn reformat_string(orig_str: &str, orig_format: &str, new_format: &str) -> Resul
     // 2. Escape the entire format string
     let escaped_format = escape(orig_format);
 
-    // 3. Replace the escaped tags with (.+)
-    // In Rust, escaped braces look like \{ or \{
-    // 3. Replace the escaped tags with (.+)
-    // Use a new regex that specifically looks for escaped braces \{...\}
     let escaped_tag_regex = Regex::new(r"\\\{.+?\\\}").unwrap();
     let pattern_str = escaped_tag_regex
         .replace_all(&escaped_format, "(.+)")
@@ -51,6 +47,22 @@ fn reformat_string(orig_str: &str, orig_format: &str, new_format: &str) -> Resul
     }
 
     Ok(result)
+}
+
+fn get_sorted_files(base_path: &PathBuf) -> Result<Vec<fs::DirEntry>, String> {
+
+            // Check if the directory exists/is readable
+            let entries = match fs::read_dir(&base_path) {
+                Ok(e) => e,
+                Err(e) => { return Err(format!("Invalid folder path: {}", e)) }
+                };
+            
+
+            // Prepare the list (Flatten and Sort)
+            let mut file_entries: Vec<fs::DirEntry> = entries.flatten().collect();
+            file_entries.sort_by_key(|entry| entry.file_name());
+
+            return Ok(file_entries);
 }
 
 fn main() -> eframe::Result<()> {
@@ -90,20 +102,18 @@ impl Default for RenamerApp {
 impl RenamerApp {
     fn run_logic(&mut self, dry_run: bool) {
         self.results.clear();
-        let path = PathBuf::from(&self.folder);
+        
+        let base_path = PathBuf::from(&self.folder);
 
-        // 1. Guard: Check if the directory exists/is readable
-        let entries = match fs::read_dir(&path) {
-            Ok(e) => e,
-            Err(_) => {
-                self.results.push("Invalid folder path".to_string());
-                return;
+        let file_entries = match get_sorted_files(&base_path) 
+        {
+            Ok(entries) => entries,
+            Err(e) => 
+            {
+                self.results.push(e); 
+                return;               
             }
         };
-
-        // Prepare the list (Flatten and Sort)
-        let mut file_entries: Vec<_> = entries.flatten().collect();
-        file_entries.sort_by_key(|entry| entry.file_name());
 
         for entry in file_entries {
             if entry.path().is_dir() {
@@ -116,15 +126,15 @@ impl RenamerApp {
                 Ok(e) => e,
                 Err(_) => {
                     self.results.push(format!("Unable to rename {}", name));
-                    return;
+                    continue;
                 }
             };
 
             if dry_run {
                 self.results.push(format!("{}  ➜  {}", name, new_name));
             } else {
-                let old_path = path.join(&name);
-                let new_path = path.join(&new_name);
+                let old_path = base_path.join(&name);
+                let new_path = base_path.join(&new_name);
 
                 match fs::rename(&old_path, &new_path) {
                     Ok(_) => self.results.push(format!("✅ {} ➜ {}", name, new_name)),
@@ -134,8 +144,6 @@ impl RenamerApp {
         }
     }
 }
-
-// if !dry_run { self.results.push("Renaming complete.".to_string()); }
 
 impl eframe::App for RenamerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -171,14 +179,25 @@ impl eframe::App for RenamerApp {
                     let spacing_total = 10.0 * 2.0;
                     let column_width = (484.0 - spacing_total) / 2.0;
 
-                    ui.add(
+                    let resp = ui.add(
                         egui::TextEdit::singleline(&mut self.pat)
-                            .min_size(egui::vec2(column_width, 0.0)),
+                            .min_size(egui::vec2(column_width, 0.0))
                     );
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.new_pat)
-                            .min_size(egui::vec2(column_width, 0.0)),
-                    );
+
+                    if resp.changed() 
+                    {
+                        self.run_logic(true);
+                    }
+
+                    let resp = ui.add(egui::TextEdit::singleline(&mut self.new_pat).min_size(egui::vec2(column_width, 0.0)));
+
+                    if resp.changed() 
+                    {
+                        self.run_logic(true);
+                    }
+
+                        
+                    
                     ui.end_row();
                 });
 
@@ -189,7 +208,7 @@ impl eframe::App for RenamerApp {
                 self.run_logic(false);
             }
             ui.add_space(10.0);
-            self.run_logic(true); // Continuous dry run
+            
 
             ui.label("Dry Run Preview:");
 
