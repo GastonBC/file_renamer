@@ -1,4 +1,4 @@
-**🦀 Rust File Renamer**
+# **🦀 Rust File Renamer**
 
 A lightweight, high-performance GUI file renamer built with **Rust** and **eframe (egui)**. This tool allows you to batch rename files using dynamic pattern matching and provides a real-time "dry run" preview.
 
