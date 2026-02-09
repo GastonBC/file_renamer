@@ -1,0 +1,29 @@
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check:
+    name: Verify Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "file_renamer_rs -> target"
+      
+      - name: Cargo Check
+        run: cargo check
+        working-directory: ./file_renamer_rs/
+
+      # Only run full build on main branch to save time/minutes
+      - name: Build
+        if: github.ref == 'refs/heads/main'
+        run: cargo build --release
+        working-directory: ./file_renamer_rs/
