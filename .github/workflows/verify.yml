@@ -1,3 +1,5 @@
+name: Verify Build
+
 on:
   push:
     branches: [ main ]
