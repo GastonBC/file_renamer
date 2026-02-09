@@ -1,0 +1,40 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: file_renamer_linux
+            asset_name: file_renamer
+          - os: windows-latest
+            artifact_name: file_renamer_windows
+            asset_name: file_renamer.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "file_renamer_rs -> target"
+
+      - name: Build release
+        run: cargo build --release
+        working-directory: ./file_renamer_rs/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ./file_renamer_rs/target/release/${{ matrix.asset_name }}
