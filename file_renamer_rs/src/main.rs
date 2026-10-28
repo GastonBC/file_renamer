@@ -186,24 +186,14 @@ impl eframe::App for RenamerApp
                                     ui.end_row();
 
                                     let shift_pressed = ctx.input(|i| i.modifiers.shift);
+                                    let mut clicked_event: Option<(usize, bool)> = None;
 
-                                    for (idx, item) in self.items.iter_mut().enumerate()
+                                    for idx in 0..self.items.len()
                                     {
+                                        let item = &mut self.items[idx];
                                         let checkbox_resp = ui.checkbox(&mut item.selected, "");
                                         if checkbox_resp.clicked() {
-                                            if shift_pressed {
-                                                if let Some(last_idx) = self.last_clicked_index {
-                                                    let start = std::cmp::min(last_idx, idx);
-                                                    let end = std::cmp::max(last_idx, idx);
-                                                    let target_state = item.selected;
-                                                    for i in start..=end {
-                                                        if i < self.items.len() {
-                                                            self.items[i].selected = target_state;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            self.last_clicked_index = Some(idx);
+                                            clicked_event = Some((idx, item.selected));
                                         }
 
                                         ui.monospace(&item.original);
@@ -221,6 +211,19 @@ impl eframe::App for RenamerApp
                                         }
 
                                         ui.end_row();
+                                    }
+
+                                    if let Some((idx, target_state)) = clicked_event {
+                                        if shift_pressed {
+                                            if let Some(last_idx) = self.last_clicked_index {
+                                                let start = std::cmp::min(last_idx, idx);
+                                                let end = std::cmp::max(last_idx, idx);
+                                                for i in start..=end {
+                                                    self.items[i].selected = target_state;
+                                                }
+                                            }
+                                        }
+                                        self.last_clicked_index = Some(idx);
                                     }
                                 });
                         });
