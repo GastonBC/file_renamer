@@ -48,7 +48,8 @@ jobs:
 
       - name: Install Trunk (WASM bundler)
         if: matrix.is_wasm
-        uses: jetli/trunk-action@v0.16.0
+        uses: davidB/rust-cargo-make@v1 # or use cargo install
+        run: cargo install trunk --locked
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
@@ -65,15 +66,8 @@ jobs:
         run: trunk build --release
         working-directory: ./file_renamer_rs/
 
-      - name: Upload Native Artifact
-        if: ${{ !matrix.is_wasm && (inputs.target_platform == 'all' || inputs.target_platform == matrix.name) }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ./file_renamer_rs/${{ matrix.asset_path }}
-
-      - name: Upload WASM Artifact
-        if: ${{ matrix.is_wasm && (inputs.target_platform == 'all' || inputs.target_platform == 'wasm') }}
+      - name: Upload Artifact
+        if: ${{ inputs.target_platform == 'all' || inputs.target_platform == matrix.name }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
