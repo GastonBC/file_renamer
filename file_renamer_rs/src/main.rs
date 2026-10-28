@@ -6,14 +6,14 @@ fn main() -> eframe::Result<()>
 {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([550.0, 700.0])
-            .with_min_inner_size([500.0, 650.0])
+            .with_inner_size([550.0, 600.0])
+            .with_min_inner_size([500.0, 500.0])
             .with_resizable(true),
         ..Default::default()
     };
 
     eframe::run_native(
-        "Rust File Renamer",
+        "File Renamer",
         options,
         Box::new(|_cc| Ok(Box::<RenamerApp>::default())),
     )
@@ -75,7 +75,7 @@ impl RenamerApp
                     new_items.push(FileItem {
                         original: orig,
                         new_name: target,
-                        selected: true,
+                        selected: false,
                         frozen: false,
                     });
                 }
@@ -86,7 +86,6 @@ impl RenamerApp
 
     fn apply_renaming(&mut self)
     {
-        // Executes the actual rename operation via utils
         utils::process_rename(&self.folder, &self.pat, &self.new_pat, false);
         self.reload_files();
     }
@@ -97,60 +96,106 @@ impl eframe::App for RenamerApp
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
     {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("File Renamer");
-            ui.add_space(10.0);
+            ui.add_space(4.0);
 
-            // --- Top Section: Folder Selection ---
-            ui.horizontal(|ui| {
-                ui.label("Target Folder:");
-                if ui.text_edit_singleline(&mut self.folder).changed()
-                {
-                    self.reload_files();
-                }
-                if ui.button("Browse").clicked()
-                {
-                    if let Some(path) = FileDialog::new().pick_folder()
-                    {
-                        self.folder = path.display().to_string();
-                        self.reload_files();
-                    }
-                }
-            });
-
-            ui.separator();
-
-            // --- Middle Section: Patterns ---
-            egui::Grid::new("renamer_grid")
+            // --- Top Input Fields (Grid Layout) ---
+            egui::Grid::new("top_inputs")
                 .num_columns(2)
-                .spacing([10.0, 10.0])
+                .spacing([10.0, 8.0])
                 .show(ui, |ui| {
-                    ui.label("Current Pattern:");
-                    ui.label("New Pattern Template:");
+                    ui.label("Target Folder");
+                    ui.horizontal(|ui| {
+                        let available_w = ui.available_width();
+                        ui.add(egui::TextEdit::singleline(&mut self.folder).desired_width(available_w - 75.0));
+                        if ui.button("Browse").clicked()
+                        {
+                            if let Some(path) = FileDialog::new().pick_folder()
+                            {
+                                self.folder = path.display().to_string();
+                                self.reload_files();
+                            }
+                        }
+                    });
                     ui.end_row();
 
-                    let spacing_total = 20.0;
-                    let column_width = (ui.available_width() - spacing_total).max(200.0) / 2.0;
-
-                    let resp = ui.add(egui::TextEdit::singleline(&mut self.pat).min_size(egui::vec2(column_width, 0.0)));
+                    ui.label("Original Pattern");
+                    let resp = ui.add(egui::TextEdit::singleline(&mut self.pat).desired_width(ui.available_width()));
                     if resp.changed()
                     {
                         self.reload_files();
                     }
+                    ui.end_row();
 
-                    let resp = ui.add(egui::TextEdit::singleline(&mut self.new_pat).min_size(egui::vec2(column_width, 0.0)));
+                    ui.label("New Pattern");
+                    let resp = ui.add(egui::TextEdit::singleline(&mut self.new_pat).desired_width(ui.available_width()));
                     if resp.changed()
                     {
                         self.reload_files();
                     }
-
                     ui.end_row();
                 });
 
-            ui.add_space(10.0);
+            ui.add_space(8.0);
 
-            // --- Action Buttons: Freeze & Run ---
+            // --- Bottom Action Buttons (Pinned to bottom) ---
+            let button_height = 30.0;
+            let spacing = 8.0;
+            let available_height = ui.available_height() - button_height - spacing;
+
+            // --- Middle Table Section inside a framed group ---
+            egui::Frame::group(ui.style())
+                .inner_margin(4.0)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(available_height)
+                        .auto_shrink([false; 2])
+                        .show(ui, |ui| {
+                            egui::Grid::new("results_grid")
+                                .num_columns(3)
+                                .spacing([12.0, 6.0])
+                                .striped(true)
+                                .show(ui, |ui| {
+                                    // Header Row
+                                    ui.label(egui::RichText::new("Old Value").strong());
+                                    ui.label(egui::RichText::new("New Value").strong());
+                                    ui.label(""); // spacer or select header
+                                    ui.end_row();
+
+                                    ui.separator();
+                                    ui.separator();
+                                    ui.separator();
+                                    ui.end_row();
+
+                                    for item in &mut self.items
+                                    {
+                                        ui.monospace(&item.original);
+
+                                        if item.frozen
+                                        {
+                                            ui.horizontal(|ui| {
+                                                ui.monospace(egui::RichText::new(&item.new_name).color(egui::Color32::LIGHT_BLUE));
+                                                ui.label("(Frozen)");
+                                            });
+                                        }
+                                        else
+                                        {
+                                            ui.monospace(egui::RichText::new(&item.new_name));
+                                        }
+
+                                        ui.checkbox(&mut item.selected, "");
+                                        ui.end_row();
+                                    }
+                                });
+                        });
+                });
+
+            ui.add_space(spacing);
+
+            // --- Bottom Buttons Row ---
             ui.horizontal(|ui| {
-                if ui.button("❄ Freeze Selected").clicked()
+                let btn_width = (ui.available_width() - 10.0) / 2.0;
+
+                if ui.add_sized([btn_width, button_height], egui::Button::new("Mark Selected as Final")).clicked()
                 {
                     for item in &mut self.items {
                         if item.selected {
@@ -159,53 +204,11 @@ impl eframe::App for RenamerApp
                     }
                 }
 
-                if ui.button("🚀 Apply Renaming").clicked()
+                if ui.add_sized([btn_width, button_height], egui::Button::new("Apply New Values")).clicked()
                 {
                     self.apply_renaming();
                 }
             });
-
-            ui.add_space(10.0);
-            ui.label("Dry Run Preview & Selection:");
-
-            // --- Bottom Section: File List with Checkboxes ---
-            egui::ScrollArea::vertical()
-                .max_height(400.0)
-                .auto_shrink([false; 2])
-                .show(ui, |ui| {
-                    egui::Grid::new("results_grid")
-                        .num_columns(4)
-                        .spacing([10.0, 6.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            for item in &mut self.items
-                            {
-                                // Column 1: Checkbox for selection
-                                ui.checkbox(&mut item.selected, "");
-
-                                // Column 2: Original Name
-                                ui.monospace(&item.original);
-
-                                // Column 3: Arrow indicator
-                                ui.label("➜");
-
-                                // Column 4: New Name (Color-coded if frozen)
-                                if item.frozen
-                                {
-                                    ui.horizontal(|ui| {
-                                        ui.monospace(egui::RichText::new(&item.new_name).color(egui::Color32::LIGHT_BLUE));
-                                        ui.label("(Frozen)");
-                                    });
-                                }
-                                else
-                                {
-                                    ui.monospace(egui::RichText::new(&item.new_name).color(egui::Color32::LIGHT_GREEN));
-                                }
-
-                                ui.end_row();
-                            }
-                        });
-                });
         });
     }
 }
