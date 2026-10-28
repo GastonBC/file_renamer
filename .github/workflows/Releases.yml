@@ -48,7 +48,6 @@ jobs:
 
       - name: Install Trunk (WASM bundler)
         if: matrix.is_wasm
-        uses: davidB/rust-cargo-make@v1 # or use cargo install
         run: cargo install trunk --locked
 
       - name: Rust Cache
