@@ -1,5 +1,6 @@
 use eframe::egui;
 use rfd::FileDialog;
+use std::path::Path;
 mod utils;
 
 fn main() -> eframe::Result<()>
@@ -33,6 +34,7 @@ struct RenamerApp
     pat: String,
     new_pat: String,
     items: Vec<FileItem>,
+    last_clicked_index: Option<usize>,
 }
 
 impl Default for RenamerApp
@@ -44,6 +46,7 @@ impl Default for RenamerApp
             pat: "{title}.{extension}".to_string(),
             new_pat: "{title}_old.{extension}".to_string(),
             items: vec![],
+            last_clicked_index: None,
         };
 
         app.reload_files();
@@ -86,7 +89,19 @@ impl RenamerApp
 
     fn apply_renaming(&mut self)
     {
-        utils::process_rename(&self.folder, &self.pat, &self.new_pat, false);
+        let folder_path = Path::new(&self.folder);
+        for item in &self.items {
+            if item.selected {
+                let target_name = item.new_name.clone();
+
+                let old_path = folder_path.join(&item.original);
+                let new_path = folder_path.join(&target_name);
+
+                if old_path.exists() && old_path != new_path {
+                    let _ = std::fs::rename(old_path, new_path);
+                }
+            }
+        }
         self.reload_files();
     }
 }
@@ -137,7 +152,6 @@ impl eframe::App for RenamerApp
 
             ui.add_space(8.0);
 
-            // --- Bottom Action Buttons (Pinned to bottom) ---
             let button_height = 30.0;
             let spacing = 8.0;
             let available_height = ui.available_height() - button_height - spacing;
@@ -155,10 +169,15 @@ impl eframe::App for RenamerApp
                                 .spacing([12.0, 6.0])
                                 .striped(true)
                                 .show(ui, |ui| {
-                                    // Header Row
+                                    // Header Row with Select All checkbox on the left
+                                    let mut all_selected = !self.items.is_empty() && self.items.iter().all(|i| i.selected);
+                                    if ui.checkbox(&mut all_selected, "").changed() {
+                                        for item in &mut self.items {
+                                            item.selected = all_selected;
+                                        }
+                                    }
                                     ui.label(egui::RichText::new("Old Value").strong());
                                     ui.label(egui::RichText::new("New Value").strong());
-                                    ui.label(""); // spacer or select header
                                     ui.end_row();
 
                                     ui.separator();
@@ -166,8 +185,27 @@ impl eframe::App for RenamerApp
                                     ui.separator();
                                     ui.end_row();
 
-                                    for item in &mut self.items
+                                    let shift_pressed = ctx.input(|i| i.modifiers.shift);
+
+                                    for (idx, item) in self.items.iter_mut().enumerate()
                                     {
+                                        let checkbox_resp = ui.checkbox(&mut item.selected, "");
+                                        if checkbox_resp.clicked() {
+                                            if shift_pressed {
+                                                if let Some(last_idx) = self.last_clicked_index {
+                                                    let start = std::cmp::min(last_idx, idx);
+                                                    let end = std::cmp::max(last_idx, idx);
+                                                    let target_state = item.selected;
+                                                    for i in start..=end {
+                                                        if i < self.items.len() {
+                                                            self.items[i].selected = target_state;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            self.last_clicked_index = Some(idx);
+                                        }
+
                                         ui.monospace(&item.original);
 
                                         if item.frozen
@@ -182,7 +220,6 @@ impl eframe::App for RenamerApp
                                             ui.monospace(egui::RichText::new(&item.new_name));
                                         }
 
-                                        ui.checkbox(&mut item.selected, "");
                                         ui.end_row();
                                     }
                                 });
