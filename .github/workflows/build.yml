@@ -12,10 +12,10 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: file_renamer_linux
-            asset_name: file_renamer
+            asset_name: file_renamer_rs
           - os: windows-latest
             artifact_name: file_renamer_windows
-            asset_name: file_renamer.exe
+            asset_name: file_renamer_rs.exe
 
     steps:
       - name: Checkout code
